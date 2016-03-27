@@ -2,7 +2,7 @@ import pygame
 import sys
 from pygame.locals import *
 import random
-import copy
+from copy import deepcopy
 
 pygame.init()
 DISPLAY = (640, 480)
@@ -114,7 +114,10 @@ class Second_Menu(Menu):
 class Game:
 	def __init__(self):
 		self.playing = True
-		self.key_to_dir = {K_UP : (0, -1), K_DOWN : (0, 1), K_LEFT : (-1, 0), K_RIGHT : (1, 0)}
+		self.key_to_dir = {K_UP : (0, -1), 
+						   K_DOWN : (0, 1), 
+						   K_LEFT : (-1, 0), 
+						   K_RIGHT : (1, 0)}
 		self.difficulty = 1
 		self.matrix = self.generate_level(self.difficulty)
 		self.char_pos = self.find_block(self.matrix, START)
@@ -192,7 +195,7 @@ class Game:
 		goal_pos = self.find_block(matrix, GOAL)
 		max_tries = 11 - difficulty #maximum succesful attempts for the level allowed
 		number_of_tests = 10
-		matrix_copy = copy.deepcopy(matrix) # for resseting
+		matrix_copy = deepcopy(matrix) # for resseting
 
 		while True:
 			if blocks_changed < 20:
@@ -201,7 +204,7 @@ class Game:
 				if matrix[rand_y][rand_x] < 3: # changed block shouldn't be a start or goal block
 					matrix[rand_y][rand_x] = random.randrange(3)
 					blocks_changed += 1
-			else: #more than 20 blocks have been placed
+			elif blocks_changed < 50: #enough blocks have been changed, but not too many
 				succesful_tries = 0
 				tests = 0
 				while tests <= number_of_tests: # test level ten times
@@ -209,9 +212,8 @@ class Game:
 						succesful_tries += 1 
 					if succesful_tries > max_tries:
 						# level is too easy, reset everything
-						matrix = copy.deepcopy(matrix_copy)
+						matrix = deepcopy(matrix_copy)
 						blocks_changed = 0
-						number_of_tests = 10
 					tests += 1
 				if 0 < succesful_tries <= max_tries:
 					# level is solveable and hard enough
@@ -224,6 +226,9 @@ class Game:
 						if matrix[rand_y][rand_x] < 3: # changed block shouldn't be a start or goal block
 							matrix[rand_y][rand_x] = random.randrange(3)
 							blocks_changed += 1
+			else:
+				matrix = deepcopy(matrix_copy)
+				blocks_changed = 0
 
 
 
@@ -245,7 +250,6 @@ class Game:
 		matrix_width = len(matrix[0])
 		#generate start point:
 		start = (random.randrange(2, matrix_width - 2), random.randrange(2, matrix_height - 2))
-		matrix[start[1]][start[0]] = START
 		return_value = self.generate_path(matrix, [start])
 
 		while len(return_value[0]) < 15:
@@ -258,8 +262,9 @@ class Game:
 		goal = stop_points[-1]
 		blocks_passed = return_value[2]
 		matrix[goal[1]][goal[0]] = GOAL
-		self.generate_stepper(matrix, start, stone=False)
+		self.gen_access(matrix, start, stone=True)
 		self.generate_distractions(matrix, stop_points, blocks_passed)
+		matrix[1][1] = START
 		return matrix
 
 
@@ -269,9 +274,11 @@ class Game:
 
 		# find connecting points that aren't connected to any other stops on the way
 		same_y = [(x, char_pos[1]) for x in range(2, len(matrix[0]) - 2) 
-			      if self.one_block(matrix, (x, char_pos[1]), stone) and not (x, char_pos[1]) in stop_points]
+			      if self.one_block(matrix, (x, char_pos[1]), stone) 
+			      and not (x, char_pos[1]) in stop_points]
 		same_x = [(char_pos[0], y) for y in range(2, len(matrix) - 2) 
-				  if self.one_block(matrix, (char_pos[0], y), stone) and not  (char_pos[0], y)  in stop_points]
+				  if self.one_block(matrix, (char_pos[0], y), stone) 
+				  and not  (char_pos[0], y)  in stop_points]
 
 		# filter list to not include points next to the characters position
 		same_y = [coord for coord in same_y if abs(coord[0] - char_pos[0]) != 1 and abs(coord[1] - char_pos[1]) != 1]
@@ -400,7 +407,7 @@ class Game:
 					if valid:
 						matrix[block[1]][block[0]] = FLOOR
 						blocks_placed.append(block)
-						self.generate_stepper(matrix, block)
+						self.gen_access(matrix, block)
 
 				
 
@@ -428,60 +435,42 @@ class Game:
 			output.append((block[0] + movement[0], block[1] + movement[1]))
 		return output
 
-	def generate_stepper(self, matrix, block, stone=False):
+	def gen_access(self, matrix, block, stone=False):
 		"""generates a random access-point to the block on the boarder of the matrix, modifies matrix and returns placed block"""
 		matrix_width = len(matrix[0])
 		matrix_height = len(matrix)
-		possibilities = []
-		# up:
-		movement = self.move(matrix, block, (0, -1))
-		new_pos = (block[0] + movement[0], block[1] + movement[1])
-		if new_pos == (block[0], 1):
-			if stone:
-				if (new_pos[0] - 1 > 1 and random.random() < 0.5) or new_pos[0] + 1 > matrix_width - 2:
-					possibilities.append((block[0] + movement[0] - 1, block[1] + movement[1])) 
-				else: 
-					possibilities.append((block[0] + movement[0] + 1, block[1] + movement[1]))
-			else:
-				possibilities.append((block[0] + movement[0], block[1] + movement[1]))
-			
+		possibilities = [] 
+		choice = (0, 0)
+		alt_possibilities = [] # stores alternatives for floor blocks if there are no possibilities for stone blocks
+		vert_directions = ((0, -1), (0, 1))
+		hor_directions = ((-1, 0), (1, 0))
+		relevant_number = {(0, -1) : matrix_height,  (0, 1) : matrix_height,
+						   (-1, 0) : matrix_width, (1, 0) : matrix_width}
+		other_dimension = {(0, -1) : hor_directions,  (0, 1) : hor_directions,
+						   (-1, 0) : vert_directions, (1, 0) : vert_directions}
 
-		# down:
-		movement = self.move(matrix, block, (0, 1))
-		new_pos = (block[0] + movement[0], block[1] + movement[1])
-		if new_pos == (block[0], matrix_height - 2):
-			if stone:
-				if (new_pos[0] - 1 > 1 and random.random() < 0.5) or new_pos[0] + 1 > matrix_width - 2:
-					possibilities.append((block[0] + movement[0] - 1, block[1] + movement[1])) 
-				else: 
-					possibilities.append((block[0] + movement[0] + 1, block[1] + movement[1]))
-			else:
-				possibilities.append((block[0] + movement[0], block[1] + movement[1]))
-		# left:
-		movement = self.move(matrix, block, (-1, 0))
-		new_pos = (block[0] + movement[0], block[1] + movement[1])
-		if new_pos == (1, block[1]):
-			if stone:
-				if (new_pos[1] - 1 > 1 and random.random() < 0.5) or new_pos[1] + 1 > matrix_height - 2:
-					possibilities.append((block[0] + movement[0], block[1] + movement[1] - 1)) 
-				else: 
-					possibilities.append((block[0] + movement[0], block[1] + movement[1] + 1))
-			else:
-				possibilities.append((block[0] + movement[0], block[1] + movement[1]))
-		#right:
-		movement = self.move(matrix, block, (1, 0))
-		new_pos = (block[0] + movement[0], block[1] + movement[1])
-		if new_pos == (matrix_width - 2, block[1]):
-			if stone:
-				if (new_pos[1] - 1 > 1 and random.random() < 0.5) or new_pos[1] + 1 > matrix_height - 2:
-					possibilities.append((block[0] + movement[0], block[1] + movement[1] - 1)) 
-				else: 
-					possibilities.append((block[0] + movement[0], block[1] + movement[1] + 1))
-			else:
-				possibilities.append((block[0] + movement[0], block[1] + movement[1]))
+		for direction in DIRECTIONS:
+			# move in direction
+			movement = self.move(matrix, block, direction)
+			new_pos = (block[0] + movement[0], block[1] + movement[1])
+			#check if block is on boarder
+			if (new_pos[0] in [1, matrix_width - 2]) != (new_pos[1] in [1, matrix_height - 2]): # only true if one of them is true (XOR), filters corners
+				alt_possibilities.append(new_pos)
 
-		choice = random.choice(possibilities)
-		matrix[choice[1]][choice[0]] = STONE if stone else FLOOR
+				if stone:
+					for other_dir in other_dimension[direction]:
+						# hitting stone block from the other side shouldn't connect to a block:
+						if self.get_connecting_blocks(matrix, (new_pos[0] + 2 * other_dir[0], new_pos[1] + 2 * other_dir[1])) == []:
+							possibilities.append((new_pos[0] + other_dir[0], new_pos[1] + other_dir[1]))
+				else:
+					possibilities.append(new_pos)
+
+		if possibilities:
+			choice = random.choice(possibilities)
+			matrix[choice[1]][choice[0]] = STONE if stone else FLOOR
+		elif alt_possibilities:
+			choice = random.choice(alt_possibilities)
+			matrix[choice[1]][choice[0]] = FLOOR
 		return choice
 
 	def get_blocks_passed(self, start, goal):
@@ -521,7 +510,6 @@ class Game:
 
 class Generate_Levels(Game):
 	def __init__(self, monte_carlo = True, difficulty = 10):
-
 		self.playing = True
 		self.key_to_dir = {K_UP : (0, -1), K_DOWN : (0, 1), K_LEFT : (-1, 0), K_RIGHT : (1, 0)}
 		self.difficulty = difficulty
