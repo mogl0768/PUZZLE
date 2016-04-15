@@ -26,89 +26,53 @@ FLOOR = 2
 GOAL = 3
 START = 4
 
-
 CHAR_IMG = pygame.image.load("char.png")
 stone_img = pygame.image.load("s.png")
 ice_img = pygame.image.load("i.png")
 floor_img = pygame.image.load("f.png")
 goal_img = pygame.image.load("w.png")
-block_to_picture = {ICE : ice_img, STONE : stone_img, FLOOR : floor_img, GOAL : goal_img, START : floor_img}
+block_to_picture = {ICE : ice_img, 
+					STONE : stone_img, FLOOR : 
+					floor_img, GOAL : goal_img, 
+					START : floor_img}
 
+class Button:
+	def __init__(self, text, rect, func=None):
+		self.text = text
+		self.rect = rect
+		self.func = func
+
+	def draw(self):
+		pygame.draw.rect(setdisplay, BLUE, self.rect)
+		label = myfont.render(self.text, 1, (255,255,0))
+		setdisplay.blit(label, (self.rect.topleft[0] + 20, self.rect.topleft[1]))
+
+	def check_collide(self, pos):
+		"""tests if mouse collides with Button"""
+		return self.rect.collidepoint(pos)
 class Menu:
-	def __init__(self):
-		self.button1_rect = pygame.Rect(DISPLAY[0] / 4, 1.5 * DISPLAY[1] / 5, 320, 50)
-		self.button2_rect = pygame.Rect(DISPLAY[0] / 4, 2.5 * DISPLAY[1] / 5, 320, 50)
-		self.button3_rect = pygame.Rect(DISPLAY[0] / 4, 3.5 * DISPLAY[1] / 5, 320, 50)
-		# each button is stored as [Rect-Object, Text, Handler]
-		self.button1 = [self.button1_rect, "Campaign", self.button1_handler]
-		self.button2 = [self.button2_rect, "Level Generator", self.button2_handler]
-		self.button3 = [self.button3_rect, "Quit", self.button3_handler]
-		self.buttons = [self.button1, self.button2, self.button3]
-		self.selecting = True
-		pygame.init()
+	def __init__(self, *args):
+		self.buttons = args
 
 	def main(self):	
-		while self.selecting:
+		while True:
 			setdisplay.fill(BLACK)
 			for event in pygame.event.get():
 				if event.type == QUIT:
 					pygame.quit()
 					sys.exit()
 				if event.type == MOUSEBUTTONUP:
+					mouse_pos = pygame.mouse.get_pos()
 					for button in self.buttons:
-						if button[0].collidepoint(pygame.mouse.get_pos()):
-							self.selecting = False
-							button[2]()
+						if button.check_collide(mouse_pos):
+							button.func()
 			self.draw()
 			pygame.display.update()
 			fpsTime.tick(fps)
 
 	def draw(self):
 		for button in self.buttons:
-			pygame.draw.rect(setdisplay, BLUE, button[0])
-			self.write_rect(button[0], button[1])
-
-	def button1_handler(self):
-		next_scene = Game()
-		next_scene.main()
-
-	def button2_handler(self):
-		next_menu = Second_Menu()
-		next_menu.main()
-
-	def button3_handler(self):
-		pygame.quit()
-		sys.exit()
-
-	def write_rect(self, rect, string):
-		"""writes string into rect on the screen"""
-		label = myfont.render(string, 1, (255,255,0))
-		setdisplay.blit(label, (rect.topleft[0] + 20, rect.topleft[1]))
-
-class Second_Menu(Menu):
-	def __init__(self):
-		self.button1_rect = pygame.Rect(DISPLAY[0] / 4, 1.5 * DISPLAY[1] / 5, 320, 50)
-		self.button2_rect = pygame.Rect(DISPLAY[0] / 4, 2.5 * DISPLAY[1] / 5, 320, 50)
-		self.button3_rect = pygame.Rect(DISPLAY[0] / 4, 3.5 * DISPLAY[1] / 5, 320, 50)
-		# each button is stored as [Rect-Object, Text, Handler]
-		self.button1 = [self.button1_rect, "Use Monte Carlo", self.button1_handler]
-		self.button2 = [self.button2_rect, "Use Custom", self.button2_handler]
-		self.button3 = [self.button3_rect, "Back", self.button3_handler]
-		self.buttons = [self.button1, self.button2, self.button3]
-		self.selecting = True
-		pygame.init()
-
-	def button1_handler(self):
-		next_scene = Generate_Levels(True)
-		next_scene.main()
-
-	def button2_handler(self):
-		next_scene = Generate_Levels(False)
-		next_scene.main()
-
-	def button3_handler(self):
-		next_menu = Menu()
-		next_menu.main()
+			button.draw()
 
 
 class Game:
@@ -140,8 +104,7 @@ class Game:
 					if self.movement_bank == [0, 0] and event.key in list(self.key_to_dir.keys()):
 						self.movement_bank = self.move(self.matrix, self.char_pos, self.key_to_dir[event.key])
 					elif event.key == K_ESCAPE:
-						menu = Menu()
-						menu.main()
+						main_menu.main()
 			for dimension in range(2):
 				if self.movement_bank[dimension] != 0:
 					direction = int (self.movement_bank[dimension] / abs(self.movement_bank[dimension])) # is either 1 or -1
@@ -321,7 +284,7 @@ class Game:
 		return self.generate_path(matrix, stop_points, blocks_passed, direction, stone = is_stone)
 
 	def place_block(self, matrix, x_list, y_list, block_type, stop_points, blocks_passed):
-		"""helper function for generatelevel2, places block from the lists on the matrix, modifies relevant lists and returns direction"""
+		"""helper function for generatelevel2, places random block from the lists on the matrix, modifies relevant lists and returns direction"""
 		char_pos = stop_points[-1]
 		# choose a list
 		if x_list and y_list:
@@ -342,8 +305,8 @@ class Game:
 
 	def one_block(self, matrix, block, stone):
 		"""
-		tests if block only connects to exactly one other block by testing if a character would move to the boarder of the matrix
-		helper function for generate_path
+		tests if block only connects to exactly one other block by testing if a character would move to the boarder of the matrix.
+		Helper function for generate_path.
 		"""
 		matrix_height = len(matrix)
 		matrix_width = len(matrix[0])
@@ -414,8 +377,10 @@ class Game:
 	def not_in_boarder(self, matrix, block):
 		"""return true if the block is not on the boarder of the matrix"""
 		return 1 < block[0] < len(matrix[0]) and 1 < block[1] < len(matrix)
+
 	def is_connecting(self, block1, block2):
 		return block1[0] == block2[0] or block1[1] == block2[1] 
+
 	def get_connecting_blocks(self, matrix, block):
 		"""returns connecting blocks that arent on the boarder"""
 		matrix_height = len(matrix)
@@ -525,6 +490,10 @@ class Generate_Levels(Game):
 		menu = Second_Menu()
 		menu.main()
 
+def quit():
+	pygame.quit()
+	sys.exit()
+
 def load_level(level_file):
 	"""takes level file, returns game Matrix"""
 	matrix = []
@@ -542,5 +511,22 @@ def save_level(matrix, filename):
 			file.write("\n")
 
 if __name__ == '__main__':
-	menu = Menu()
-	menu.main()
+	# create Rect-Objects on future button positions
+	rects= [pygame.Rect(160, 144, 320, 50), pygame.Rect(160, 240, 320, 50), pygame.Rect(160, 336, 320, 50)]
+
+	campaign = Game()
+	level_gen_monte = Generate_Levels(monte_carlo = True)
+	level_gen_custom = Generate_Levels(monte_carlo = False)
+	#(self, text, rect, func=None)
+	button1 = Button("Campaign", rects[0], campaign.main)
+	button2 = Button("Level Generator", rects[1])
+	button3 = Button("Quit", rects[2], quit)
+	main_menu = Menu(button1, button2, button3)
+
+	button4 = Button("Use Monte Carlo", rects[0], level_gen_monte.main)
+	button5 = Button("Use Custom",rects[1], level_gen_custom.main)
+	button6 = Button("Back", rects[2], main_menu.main)
+	sec_menu = Menu(button4, button5, button6)
+
+	button2.func = sec_menu.main
+	main_menu.main()
